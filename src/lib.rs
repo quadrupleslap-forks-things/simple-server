@@ -43,7 +43,7 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use std::borrow::Cow;
@@ -67,6 +67,7 @@ pub type Handler<T> = Box<
 pub struct Server<T> {
     handler: Handler<T>,
     timeout: Option<Duration>,
+    static_directory: PathBuf,
 }
 
 impl<'a, T: Into<Cow<'a, [u8]>>> Server<T> {
@@ -108,6 +109,7 @@ impl<'a, T: Into<Cow<'a, [u8]>>> Server<T> {
         Server {
             handler: Box::new(handler),
             timeout: None,
+            static_directory: PathBuf::from("."),
         }
     }
 
@@ -144,6 +146,7 @@ impl<'a, T: Into<Cow<'a, [u8]>>> Server<T> {
         Server {
             handler: handler,
             timeout: Some(timeout),
+            static_directory: PathBuf::from("."),
         }
     }
 
@@ -198,6 +201,10 @@ impl<'a, T: Into<Cow<'a, [u8]>>> Server<T> {
         }
     }
 
+    pub fn set_static_directory<P: Into<PathBuf>>(&mut self, path: P) {
+        self.static_directory = path.into();
+    }
+
     // Try and fetch the environment variable SIMPLESERVER_THREADS and parse it as a u32.
     // If this fails we fall back to using the num_cpus crate.
     fn pool_size(&self) -> u32 {
@@ -249,6 +256,8 @@ impl<'a, T: Into<Cow<'a, [u8]>>> Server<T> {
             write_response(response, stream)?;
             return Ok(());
         }
+
+        let fs_path = self.static_directory.join(fs_path);
 
         if Path::new(&fs_path).is_file() {
             let mut f = File::open(&fs_path)?;
